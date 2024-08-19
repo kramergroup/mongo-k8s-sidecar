@@ -23,6 +23,18 @@ var getMongoPods = async function getPods() {
   return podRes.body.items
 };
 
+var getThisPod = async function getThisPod() {
+  const podRes = await k8sApi.readNamespacedPod(config.podName, config.namespace)
+  return podRes.body
+}
+
+var getPrimaryPod = async function getPrimaryPod() {
+  const podRes = await k8sApi.listNamespacedPod(config.namespace, false, null, null, 
+    null, "replicaset.mongodb.com/state=PRIMARY"
+  );
+  return podRes.body.items
+}
+
 var watchMongoPods = ( callback ) => {
 
   const path = `/api/v1/namespaces/${config.namespace}/pods`;
@@ -150,6 +162,8 @@ var getPodStableNetworkAddressAndPort = function(pod) {
 };
 
 export default {
+  getPrimaryPod: getPrimaryPod,
+  getThisPod: getThisPod,
   getMongoPods: getMongoPods,
   watchMongoPods: watchMongoPods,
   getPodNameForNode: getPodNameForNode,

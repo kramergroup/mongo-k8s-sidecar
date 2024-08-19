@@ -9,6 +9,8 @@ import { takeOnWorkerRole } from './roles/worker.js';
 
 import { submitPeriodicJob } from './queues/worker-queue.js';
 
+import k8s from './lib/k8s.js'
+
 
 logger.info('Starting up');
 
@@ -29,26 +31,27 @@ await subscribeMemberState( async (member,state) => {
   }
 })
 
-try {
-  var {db, close} = mongo.getDb()
-  await mongo.replSetGetStatus(db)
+// try {
+//   var {db, close} = mongo.getDb()
+//   await mongo.replSetGetStatus(db)  
+// } catch (err) {
+//   if (err.code && err.code == 94) {
+//     // The mongoDB replica set is not yet initialised. Lets do this now if there is no
+//     // primary running on a different pod.
 
-  await takeOnWorkerRole()
-  
-} catch (err) {
-  if (err.code && err.code == 94) {
-    // The mongoDB replica set is not yet initialised. Lets do this now
-    await initialiseReplicaSet()
-  }
-  if (err.code && err.code == 93) { 
-    // The replica set is invalid - lets become the primary 
-    logger.warn({message: err.message}, 'Invalid replica set.')
-  } else {
-    logger.error(err)
-  }  
-} finally {
-  if (close) close()
-}
+//     await initialiseReplicaSet()
+//   }
+//   if (err.code && err.code == 93) { 
+//     // The replica set is invalid - lets become the primary 
+//     logger.warn({message: err.message}, 'Invalid replica set.')
+//   } else {
+//     logger.error(err)
+//   }  
+// } finally {
+//   if (close) close()
+// }
+
+await takeOnWorkerRole()
 
 // Setup periodic jobs
 await submitPeriodicJob('reconcile-state', {}, "*/10 * * * * *")

@@ -7,6 +7,8 @@ import moment from 'moment'
 import { submitJob as submitPrimaryJob } from '../queues/primary-queue.js'
 import { submitJob } from '../queues/worker-queue.js'
 import { broadcastMemberState } from '../lib/redis.js'
+import { initialiseReplicaSet } from '../actions/initialise-replica-set.js';
+
 
 /**
  * Reconsiles the state between MongoDB and k8s. The job first reads the current replica 
@@ -23,7 +25,28 @@ export async function reconcileState() {
   try {
     var {db,close} = mongo.getDb()
     var pods = await k8s.getMongoPods()
-    var rsStatus = await mongo.replSetGetStatus(db)
+    
+    var rsStatus
+    try {
+      rsStatus = await mongo.replSetGetStatus(db)
+    } catch (err) {
+      if (err.code && err.code == 94) {
+        // The mongoDB replica set is not yet initialised. Lets do this now and get the 
+        // new replica set
+        const primary = await k8s.getPrimaryPod()
+        if ( primary.length < 1 ) {
+          // No primary node. We should initialise the replica set
+          await initialiseReplicaSet()
+          rsStatus = await mongo.replSetGetStatus(db)
+        } else {
+          // there is a primary node - submit a reconcilation job to the primary node to pick up 
+          // new nodes.
+          submitPrimaryJob('reconsile-state',{})
+          return
+        }
+        
+      }
+    }
 
     // See: https://dev.to/devtronic/javascript-map-an-array-of-objects-to-a-dictionary-3f42
     const memberPodsMap = Object.fromEntries(rsStatus.members.map( m => {
@@ -63,7 +86,8 @@ export async function reconcileState() {
         submitPrimaryJob('reconfigure-replica-set', { addrToAdd, addrToRemove, force: forceReplicaSet })
       }
     }
-    
+  } catch (err) {
+    logger.error(err)  
   } finally {
     if (close) close()
   }

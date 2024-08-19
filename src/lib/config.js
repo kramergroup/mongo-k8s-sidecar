@@ -1,5 +1,6 @@
 import dns from 'dns';
 import logger from './logging.js'
+import { networkInterfaces } from 'os';
 
 var getMongoPodLabels = function() {
   return process.env.MONGO_SIDECAR_POD_LABELS || false;
@@ -111,7 +112,35 @@ var redisURL = () => {
   return new URL(redisURL)
 }
 
+/**
+ * Obtain the local IP addresses
+ * 
+ * Source: https://stackoverflow.com/questions/3653065/get-local-ip-address-in-node-js
+ * 
+ * @returns array of string
+ */
+var localIPs = () => {
+
+  const nets = networkInterfaces();
+  const results = []; // Or just '{}', an empty object
+
+  for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+          // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+          // 'IPv4' is in Node <= 17, from 18 it's a number 4 or 6
+          // const familyV4Value = typeof net.family === 'string' ? 'IPv4' : 4
+          // if (net.family === familyV4Value && !net.internal) {
+          if (!net.internal) {
+              results.push(net.address);
+          }
+      }
+  }
+  return results
+}
+
 export default {
+  ownIPs: localIPs() || [process.env.POD_IP],
+  podName: process.env.POD_NAME,
   namespace: process.env.KUBE_NAMESPACE,
   username: process.env.MONGODB_USERNAME,
   password: process.env.MONGODB_PASSWORD,
